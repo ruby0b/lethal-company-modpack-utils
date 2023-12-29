@@ -28,12 +28,13 @@ PLUGIN_SUFFIXES = [".dll", ".lem"]
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Manually install a Lethal Company modpack from thunderstore.io"
+        description="Manually install a Lethal Company mod(pack)s from thunderstore.io"
     )
     parser.add_argument(
-        "modpack",
-        help="Modpack string (author-name-version). Use 'latest' as the version to automatically fetch the latest version.",
+        "mod",
+        help="Mod string (author-name-version). Leave out version to use the latest version.",
         type=str,
+        nargs="+",
     )
     parser.add_argument(
         "--game_dir",
@@ -53,16 +54,15 @@ def main():
 
     game_dir: Path = args.game_dir.resolve()
 
+    # Cleanup / prepare
     if not game_dir.exists():
         print(f"{FAIL}Game directory does not exist: {game_dir}{ENDC}")
         exit(1)
-
     if not (game_dir / "BepInEx").exists():
         print(
             f"{FAIL}BepInEx folder does not exist in game directory: {game_dir}{ENDC}"
         )
         exit(1)
-
     print("Deleting old mod files...")
     for item in (game_dir / "BepInEx").iterdir():
         if (
@@ -71,39 +71,41 @@ def main():
             and item.name not in MOD_FOLDERS_NO_DELETE
         ):
             shutil.rmtree(item)
-
     for folder in MOD_FOLDERS:
         (game_dir / "BepInEx" / folder).mkdir(exist_ok=True)
 
-    modpack = Mod.parse(args.modpack)
-    if modpack.version == "latest":
-        modpack.version = latest_version(modpack)
+    for mod in map(Mod.parse, args.mod):
+        if mod.version is None or mod.version == "latest":
+            mod.version = latest_version(mod)
 
-    manifest = install_mod(modpack, game_dir=game_dir, manifest=True)
-    print(f"{BOLD}Installing {len(manifest['dependencies'])} mods:{ENDC}")
+        manifest = install_mod(mod, game_dir=game_dir, manifest=True)
+        deps = manifest["dependencies"]
+        if deps:
+            print(f"{BOLD}Installing {len(deps)} dependencies:{ENDC}")
 
-    for mod in manifest["dependencies"]:
-        install_mod(Mod.parse(mod), game_dir=game_dir)
+            for dependency in manifest["dependencies"]:
+                install_mod(Mod.parse(dependency), game_dir=game_dir)
 
-    print(
-        f"{OK}Modpack {BOLD}v{modpack.version}{ENDC}{OK} installed successfully!{ENDC} ({len(manifest['dependencies'])} mods)"
-    )
+            print(
+                f"{OK}{mod.name} {BOLD}v{mod.version}{ENDC}{OK} installed successfully!{ENDC} ({len(deps)} mods)"
+            )
 
 
 @dataclass
 class Mod:
     author: str
     name: str
-    version: str
+    version: str | None
 
     @staticmethod
     def parse(mod: str):
-        try:
-            author, name, version = mod.split("-")
-        except ValueError:
-            print(f"{FAIL}Invalid mod dependency: {mod}{ENDC}")
-            raise
-        return Mod(author, name, version)
+        parts = mod.split("-")
+        if len(parts) == 3:
+            return Mod(*parts)
+        if len(parts) == 2:
+            return Mod(*parts, None)
+        print(f"{FAIL}Invalid mod dependency: {mod}{ENDC}")
+        exit(1)
 
     def __str__(self):
         return f"{self.author}-{self.name}-{self.version}"
