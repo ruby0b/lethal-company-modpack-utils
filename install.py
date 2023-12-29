@@ -20,8 +20,9 @@ BOLD = "\033[1m"
 
 MOD_FOLDERS = ["plugins", "config", "patchers", "core"]
 MOD_FOLDERS_NO_DELETE = ["config", "core"]
-PLUGIN_SUBFOLDERS = ["MirrorDecor"]
+PLUGIN_SUBFOLDERS = ["MirrorDecor", "Modules"]
 SKIP_FILES = ["README.md", "LICENSE", "manifest.json", "CHANGELOG.md", "icon.png"]
+PLUGIN_SUFFIXES = [".dll", ".lem"]
 # CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 
 
@@ -153,10 +154,12 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
             for item in Path.cwd().iterdir():
                 if item.name in SKIP_FILES:
                     continue
-                is_dll = item.is_file() and item.suffix == ".dll"
+                is_plugin_file = item.is_file() and item.suffix in PLUGIN_SUFFIXES
                 is_plugin_subfolder = item.is_dir() and item.name in PLUGIN_SUBFOLDERS
-                if is_dll or is_plugin_subfolder:
-                    target = game_dir / "BepInEx" / "plugins" / item.name
+                if is_plugin_file or is_plugin_subfolder:
+                    plugin_folder = game_dir / "BepInEx" / "plugins" / mod.name
+                    plugin_folder.mkdir(exist_ok=True)
+                    target = plugin_folder / item.name
                     subprocess.run(["cp", "-r", item, target], check=True)
                 elif item.is_dir() and item.name in MOD_FOLDERS:
                     for file in item.iterdir():
@@ -166,7 +169,7 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
                         subprocess.run(["cp", "-r", file, target], check=True)
                 else:
                     print(
-                        f"{WARNING}{BOLD}WARNING - Skipping unknown file/folder: {item.name}{ENDC}"
+                        f"{WARNING}{BOLD}!!! WARNING - Skipping unknown file/folder: {item.name}{ENDC}"
                     )
 
             if manifest and (content_dir / "manifest.json").exists():
