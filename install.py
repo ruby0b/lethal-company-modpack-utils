@@ -22,7 +22,7 @@ MOD_FOLDERS = ["plugins", "config", "patchers", "core"]
 MOD_FOLDERS_NO_DELETE = ["config", "core"]
 PLUGIN_SUBFOLDERS = ["MirrorDecor", "Modules"]
 SKIP_FILES = ["README.md", "LICENSE", "manifest.json", "CHANGELOG.md", "icon.png"]
-PLUGIN_SUFFIXES = [".dll", ".lem"]
+PLUGIN_SUFFIXES = [".dll", ".lem", ".xml"]
 # CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 
 
