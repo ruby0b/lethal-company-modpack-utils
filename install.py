@@ -23,7 +23,7 @@ MOD_FOLDERS_NO_DELETE = ["config", "core"]
 PLUGIN_SUBFOLDERS = ["MirrorDecor", "Modules"]
 SKIP_FILES = ["README.md", "LICENSE", "manifest.json", "CHANGELOG.md", "icon.png"]
 PLUGIN_SUFFIXES = [".dll", ".lem", ".xml"]
-# CONFIG_ALLOWLIST = ["BepInEx.cfg"]
+CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 
 
 def main():
@@ -37,7 +37,7 @@ def main():
         nargs="+",
     )
     parser.add_argument(
-        "--game_dir",
+        "--game-dir",
         "-d",
         help="Path to the Lethal Company game files directory",
         type=Path,
@@ -49,12 +49,19 @@ def main():
         / "common"
         / "Lethal Company",
     )
+    parser.add_argument(
+        "--keep-config",
+        help=f"Keep existing config files. By default, config files are deleted (except {', '.join(CONFIG_ALLOWLIST)}).",
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
+    keep_config: bool = args.keep_config
     game_dir: Path = args.game_dir.resolve()
+    mod_strings: list[str] = args.mod
 
-    # Cleanup / prepare
+    # Checks
     if not game_dir.exists():
         print(f"{FAIL}Game directory does not exist: {game_dir}{ENDC}")
         exit(1)
@@ -63,6 +70,8 @@ def main():
             f"{FAIL}BepInEx folder does not exist in game directory: {game_dir}{ENDC}"
         )
         exit(1)
+
+    # Mod cleanup
     print("Deleting old mod files...")
     for item in (game_dir / "BepInEx").iterdir():
         if (
@@ -71,10 +80,22 @@ def main():
             and item.name not in MOD_FOLDERS_NO_DELETE
         ):
             shutil.rmtree(item)
+
+    # Optional config cleanup
+    if not keep_config:
+        config_dir = game_dir / "BepInEx" / "config"
+        if config_dir.exists():
+            print("Deleting old config files...")
+            for item in config_dir.iterdir():
+                if item.is_file() and item.name not in CONFIG_ALLOWLIST:
+                    item.unlink()
+
+    # Make sure all mod folders exist
     for folder in MOD_FOLDERS:
         (game_dir / "BepInEx" / folder).mkdir(exist_ok=True)
 
-    for mod in map(Mod.parse, args.mod):
+    # Install mods
+    for mod in map(Mod.parse, mod_strings):
         if mod.version is None or mod.version == "latest":
             mod.version = latest_version(mod)
 
