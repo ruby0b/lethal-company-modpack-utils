@@ -22,17 +22,38 @@ MOD_FOLDERS = ["plugins", "config", "patchers", "core"]
 MOD_FOLDERS_NO_DELETE = ["config", "core"]
 PLUGIN_SUBFOLDERS = ["Modules"]
 # idk, the dlls are directly in these so I don't think they're subfolders
-PLUGIN_FOLDERS = ["Diversity", "MoreCompanyCosmetics", "MirrorDecor"]
-SKIP_FILES = [
-    "README.md",
-    "LICENSE",
-    "manifest.json",
-    "CHANGELOG.md",
-    "icon.png",
-    "License.txt",
+PLUGIN_FOLDERS = [
+    "Diversity",
+    "MirrorDecor",
+    "MoreCompanyCosmetics",
+    "ToggleMute",
+    "UnMaskTheDead",
 ]
-PLUGIN_SUFFIXES = [".dll", ".lem", ".xml", ".lethalbundle", ".mp4", ".pdb", ".assets"]
-PLUGIN_FILE_NAMES = ["yippeesound"]
+SKIP_FILES = [
+    "changelog.md",
+    "icon.png",
+    "license.md",
+    "license.txt",
+    "license",
+    "manifest.json",
+    "readme.md",
+]
+PLUGIN_SUFFIXES = [
+    ".assets",
+    ".dll",
+    ".lem",
+    ".lethalbundle",
+    ".mp4",
+    ".pdb",
+    ".png",
+    ".xml",
+]
+PLUGIN_FILE_NAMES = [
+    "assets",
+    "gamblingmachinebundle",
+    "immersivevisor",
+    "yippeesound",
+]
 CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 
 
@@ -185,7 +206,7 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
                     break
 
             for item in Path.cwd().iterdir():
-                if item.name in SKIP_FILES:
+                if item.name.lower() in SKIP_FILES:
                     continue
                 is_plugin_file = item.is_file() and (
                     item.suffix in PLUGIN_SUFFIXES or item.name in PLUGIN_FILE_NAMES
@@ -208,8 +229,9 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
                         target = game_dir / "BepInEx" / item.name.lower() / file.name
                         subprocess.run(["cp", "-r", file, target], check=True)
                 else:
+                    item_type = "file" if item.is_file() else "directory"
                     print(
-                        f"{WARNING}{BOLD}!!! WARNING - Skipping unknown file/folder: {item.name}{ENDC}"
+                        f"{WARNING}{BOLD}!!! WARNING - Skipping unknown {item_type}: {item.name}{ENDC}"
                     )
 
             if manifest and (content_dir / "manifest.json").exists():
