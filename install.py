@@ -53,6 +53,7 @@ PLUGIN_FILE_NAMES = [
     "gamblingmachinebundle",
     "immersivevisor",
     "yippeesound",
+    "batteries",
 ]
 CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 
