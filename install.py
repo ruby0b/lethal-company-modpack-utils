@@ -20,9 +20,19 @@ BOLD = "\033[1m"
 
 MOD_FOLDERS = ["plugins", "config", "patchers", "core"]
 MOD_FOLDERS_NO_DELETE = ["config", "core"]
-PLUGIN_SUBFOLDERS = ["MirrorDecor", "Modules"]
-SKIP_FILES = ["README.md", "LICENSE", "manifest.json", "CHANGELOG.md", "icon.png"]
-PLUGIN_SUFFIXES = [".dll", ".lem", ".xml"]
+PLUGIN_SUBFOLDERS = ["Modules"]
+# idk, the dlls are directly in these so I don't think they're subfolders
+PLUGIN_FOLDERS = ["Diversity", "MoreCompanyCosmetics", "MirrorDecor"]
+SKIP_FILES = [
+    "README.md",
+    "LICENSE",
+    "manifest.json",
+    "CHANGELOG.md",
+    "icon.png",
+    "License.txt",
+]
+PLUGIN_SUFFIXES = [".dll", ".lem", ".xml", ".lethalbundle", ".mp4", ".pdb", ".assets"]
+PLUGIN_FILE_NAMES = ["yippeesound"]
 CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 
 
@@ -177,18 +187,25 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
             for item in Path.cwd().iterdir():
                 if item.name in SKIP_FILES:
                     continue
-                is_plugin_file = item.is_file() and item.suffix in PLUGIN_SUFFIXES
+                is_plugin_file = item.is_file() and (
+                    item.suffix in PLUGIN_SUFFIXES or item.name in PLUGIN_FILE_NAMES
+                )
                 is_plugin_subfolder = item.is_dir() and item.name in PLUGIN_SUBFOLDERS
+                is_plugin_folder = item.is_dir() and item.name in PLUGIN_FOLDERS
                 if is_plugin_file or is_plugin_subfolder:
                     plugin_folder = game_dir / "BepInEx" / "plugins" / mod.name
                     plugin_folder.mkdir(exist_ok=True)
                     target = plugin_folder / item.name
                     subprocess.run(["cp", "-r", item, target], check=True)
-                elif item.is_dir() and item.name in MOD_FOLDERS:
+                elif is_plugin_folder:
+                    plugin_folder = game_dir / "BepInEx" / "plugins" / item.name
+                    plugin_folder.mkdir(exist_ok=True)
+                    subprocess.run(["cp", "-r", item, plugin_folder], check=True)
+                elif item.is_dir() and item.name.lower() in MOD_FOLDERS:
                     for file in item.iterdir():
-                        if item.name == "config":
+                        if item.name.lower() == "config":
                             print(f"📝 {file.name}")
-                        target = game_dir / "BepInEx" / item.name / file.name
+                        target = game_dir / "BepInEx" / item.name.lower() / file.name
                         subprocess.run(["cp", "-r", file, target], check=True)
                 else:
                     print(
