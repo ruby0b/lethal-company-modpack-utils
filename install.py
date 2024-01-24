@@ -48,13 +48,6 @@ PLUGIN_SUFFIXES = [
     ".png",
     ".xml",
 ]
-PLUGIN_FILE_NAMES = [
-    "assets",
-    "gamblingmachinebundle",
-    "immersivevisor",
-    "yippeesound",
-    "batteries",
-]
 CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 
 
@@ -209,12 +202,11 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
             for item in Path.cwd().iterdir():
                 if item.name.lower() in SKIP_FILES:
                     continue
-                is_plugin_file = item.is_file() and (
-                    item.suffix in PLUGIN_SUFFIXES or item.name in PLUGIN_FILE_NAMES
-                )
+                is_binary = not item.suffix and is_binary_file(item)
+                is_plugin_file = item.is_file() and item.suffix in PLUGIN_SUFFIXES
                 is_plugin_subfolder = item.is_dir() and item.name in PLUGIN_SUBFOLDERS
                 is_plugin_folder = item.is_dir() and item.name in PLUGIN_FOLDERS
-                if is_plugin_file or is_plugin_subfolder:
+                if is_binary or is_plugin_file or is_plugin_subfolder:
                     plugin_folder = game_dir / "BepInEx" / "plugins" / mod.name
                     plugin_folder.mkdir(exist_ok=True)
                     target = plugin_folder / item.name
@@ -248,6 +240,11 @@ def working_directory(directory):
         yield directory
     finally:
         os.chdir(owd)
+
+
+def is_binary_file(f: Path) -> bool:
+    textchars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7F})
+    return f.is_file() and bool(f.read_bytes().translate(None, textchars))
 
 
 if __name__ == "__main__":
