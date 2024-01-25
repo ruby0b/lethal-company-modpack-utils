@@ -49,6 +49,9 @@ PLUGIN_SUFFIXES = [
     ".xml",
 ]
 CONFIG_ALLOWLIST = ["BepInEx.cfg"]
+CACHE_DIR = (
+    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "lethal-company"
+)
 
 
 def main():
@@ -156,6 +159,10 @@ class Mod:
     def __str__(self):
         return f"{self.author}-{self.name}-{self.version}"
 
+    @property
+    def folder_name(self):
+        return f"{self.author}-{self.name}"
+
 
 def latest_version(mod: Mod, game="lethal-company"):
     print(f"📡 Checking latest version of {mod.author}-{mod.name}")
@@ -176,17 +183,11 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
         print(f"Skipping BepInExPack...")
         return
 
-    url = f"https://thunderstore.io/package/download/{mod.author}/{mod.name}/{mod.version}"
-
-    print(f"📡 Downloading {mod}")
-
     with TemporaryDirectory() as temp_dir:
         with working_directory(temp_dir):
             # download the zip
             zip_path = Path("mod.zip")
-            subprocess.run(
-                ["curl", "-L", "--no-progress-meter", "-o", zip_path, url], check=True
-            )
+            download_mod_with_cache(mod, zip_path)
 
             # extract the zip
             content_dir = Path("mod/").resolve()
@@ -207,7 +208,7 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
                 is_plugin_subfolder = item.is_dir() and item.name in PLUGIN_SUBFOLDERS
                 is_plugin_folder = item.is_dir() and item.name in PLUGIN_FOLDERS
                 if is_binary or is_plugin_file or is_plugin_subfolder:
-                    plugin_folder = game_dir / "BepInEx" / "plugins" / mod.name
+                    plugin_folder = game_dir / "BepInEx" / "plugins" / mod.folder_name
                     plugin_folder.mkdir(exist_ok=True)
                     target = plugin_folder / item.name
                     subprocess.run(["cp", "-r", item, target], check=True)
@@ -216,10 +217,17 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
                     plugin_folder.mkdir(exist_ok=True)
                     subprocess.run(["cp", "-r", item, plugin_folder], check=True)
                 elif item.is_dir() and item.name.lower() in MOD_FOLDERS:
+                    if item.name.lower() == "plugins" and len(list(item.iterdir())) > 1:
+                        plugin_folder = (
+                            game_dir / "BepInEx" / "plugins" / mod.folder_name
+                        )
+                        plugin_folder.mkdir(exist_ok=True)
+                    else:
+                        plugin_folder = game_dir / "BepInEx" / item.name.lower()
                     for file in item.iterdir():
                         if item.name.lower() == "config":
                             print(f"📝 {file.name}")
-                        target = game_dir / "BepInEx" / item.name.lower() / file.name
+                        target = plugin_folder / file.name
                         subprocess.run(["cp", "-r", file, target], check=True)
                 else:
                     item_type = "file" if item.is_file() else "directory"
@@ -245,6 +253,20 @@ def working_directory(directory):
 def is_binary_file(f: Path) -> bool:
     textchars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7F})
     return f.is_file() and bool(f.read_bytes().translate(None, textchars))
+
+
+def download_mod_with_cache(mod: Mod, output: Path):
+    CACHE_DIR.mkdir(exist_ok=True, parents=True)
+    cached_path = CACHE_DIR / f"{mod}.zip"
+    if not cached_path.exists():
+        print(f"📡 Downloading {mod}")
+        url = f"https://thunderstore.io/package/download/{mod.author}/{mod.name}/{mod.version}"
+        subprocess.run(
+            ["curl", "-L", "--no-progress-meter", "-o", cached_path, url], check=True
+        )
+    else:
+        print(f"📦 Using cached {mod}")
+    shutil.copy(cached_path, output)
 
 
 if __name__ == "__main__":
