@@ -25,18 +25,11 @@ def main():
         help="Modpack manifest.json file",
         type=Path,
     )
-    parser.add_argument(
-        "-d",
-        "--dry-run",
-        help="Don't actually update the manifest",
-        action="store_true",
-    )
 
     args = parser.parse_args()
     manifest_path: Path = (
         args.manifest if not args.manifest.is_dir() else args.manifest / "manifest.json"
     )
-    dry_run: bool = args.dry_run
 
     with manifest_path.open() as f:
         manifest = json.load(f)
@@ -59,12 +52,15 @@ def main():
             )
             any_updates = True
 
-    if any_updates and not dry_run:
-        print(f"{OK}{BOLD}Updating manifest...{ENDC}")
+    if not any_updates:
+        print(f"{BOLD}No updates{ENDC}")
+        sys.exit(0)
+
+    update = input(f"{BOLD}Update manifest.json? [Y/n]{ENDC} ").lower() in ["y", ""]
+    if any_updates and update:
         with manifest_path.open("w") as f:
             json.dump(new_manifest, f, indent=2)
-    elif not any_updates:
-        print(f"{BOLD}No updates{ENDC}")
+        print(f"{OK}{BOLD}Wrote {manifest_path}{ENDC}")
 
 
 @dataclass
@@ -81,7 +77,7 @@ class Mod:
         if len(parts) == 2:
             return Mod(*parts, None)
         print(f"{FAIL}Invalid mod dependency: {mod}{ENDC}")
-        exit(1)
+        sys.exit(1)
 
     def __str__(self):
         return f"{self.author}-{self.name}-{self.version}"
