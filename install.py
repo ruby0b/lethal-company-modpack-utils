@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from tempfile import TemporaryDirectory
 from dataclasses import dataclass
 
@@ -19,16 +20,8 @@ ENDC = "\033[0m"  # RESET COLOR
 BOLD = "\033[1m"
 
 MOD_FOLDERS = ["plugins", "config", "patchers", "core"]
-MOD_FOLDERS_NO_DELETE = ["config", "core"]
-PLUGIN_SUBFOLDERS = ["Modules"]
-# idk, the dlls are directly in these so I don't think they're subfolders
-PLUGIN_FOLDERS = [
-    "Diversity",
-    "MirrorDecor",
-    "MoreCompanyCosmetics",
-    "ToggleMute",
-    "UnMaskTheDead",
-]
+MOD_FOLDERS_KEEP = ["config", "core"]
+CONFIG_KEEP = ["BepInEx.cfg"]
 SKIP_FILES = [
     "changelog.md",
     "icon.png",
@@ -38,19 +31,12 @@ SKIP_FILES = [
     "manifest.json",
     "readme.md",
 ]
-PLUGIN_SUFFIXES = [
-    ".assets",
-    ".dll",
-    ".lem",
-    ".lethalbundle",
-    ".mp4",
-    ".pdb",
-    ".png",
-    ".xml",
-]
-CONFIG_ALLOWLIST = ["BepInEx.cfg"]
 CACHE_DIR = (
-    Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "lethal-company"
+    Path(
+        os.environ.get("LOCALAPPDATA" if sys.platform == "win32" else "XDG_CACHE_HOME")
+        or Path.home() / ".cache"
+    )
+    / "lethal-company"
 )
 
 
@@ -79,7 +65,7 @@ def main():
     )
     parser.add_argument(
         "--keep-config",
-        help=f"Keep existing config files. By default, config files are deleted (except {', '.join(CONFIG_ALLOWLIST)}).",
+        help=f"Keep existing config files. By default, config files are deleted (except {', '.join(CONFIG_KEEP)}).",
         action="store_true",
     )
 
@@ -105,7 +91,7 @@ def main():
         if (
             item.is_dir()
             and item.name in MOD_FOLDERS
-            and item.name not in MOD_FOLDERS_NO_DELETE
+            and item.name not in MOD_FOLDERS_KEEP
         ):
             shutil.rmtree(item)
 
@@ -115,7 +101,7 @@ def main():
         if config_dir.exists():
             print("Deleting old config files...")
             for item in config_dir.iterdir():
-                if item.is_file() and item.name not in CONFIG_ALLOWLIST:
+                if item.is_file() and item.name not in CONFIG_KEEP:
                     item.unlink()
 
     # Make sure all mod folders exist
@@ -203,37 +189,22 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
             for item in Path.cwd().iterdir():
                 if item.name.lower() in SKIP_FILES:
                     continue
-                is_binary = not item.suffix and is_binary_file(item)
-                is_plugin_file = item.is_file() and item.suffix in PLUGIN_SUFFIXES
-                is_plugin_subfolder = item.is_dir() and item.name in PLUGIN_SUBFOLDERS
-                is_plugin_folder = item.is_dir() and item.name in PLUGIN_FOLDERS
-                if is_binary or is_plugin_file or is_plugin_subfolder:
+                if item.is_dir() and item.name.lower() in MOD_FOLDERS:
+                    mod_folder = game_dir / "BepInEx" / item.name.lower()
+                    if item.name.lower() == "plugins":
+                        # plugin files should be put in mod-specific subfolders
+                        mod_folder /= mod.folder_name
+                    mod_folder.mkdir(exist_ok=True)
+                    for file in item.iterdir():
+                        if item.name.lower() == "config":
+                            print(f"📝 {file.name}")
+                        target = mod_folder / file.name
+                        subprocess.run(["cp", "-r", file, target], check=True)
+                else:
                     plugin_folder = game_dir / "BepInEx" / "plugins" / mod.folder_name
                     plugin_folder.mkdir(exist_ok=True)
                     target = plugin_folder / item.name
                     subprocess.run(["cp", "-r", item, target], check=True)
-                elif is_plugin_folder:
-                    plugin_folder = game_dir / "BepInEx" / "plugins" / item.name
-                    plugin_folder.mkdir(exist_ok=True)
-                    subprocess.run(["cp", "-r", item, plugin_folder], check=True)
-                elif item.is_dir() and item.name.lower() in MOD_FOLDERS:
-                    if item.name.lower() == "plugins" and len(list(item.iterdir())) > 1:
-                        plugin_folder = (
-                            game_dir / "BepInEx" / "plugins" / mod.folder_name
-                        )
-                        plugin_folder.mkdir(exist_ok=True)
-                    else:
-                        plugin_folder = game_dir / "BepInEx" / item.name.lower()
-                    for file in item.iterdir():
-                        if item.name.lower() == "config":
-                            print(f"📝 {file.name}")
-                        target = plugin_folder / file.name
-                        subprocess.run(["cp", "-r", file, target], check=True)
-                else:
-                    item_type = "file" if item.is_file() else "directory"
-                    print(
-                        f"{WARNING}{BOLD}!!! WARNING - Skipping unknown {item_type}: {item.name}{ENDC}"
-                    )
 
             if manifest and (content_dir / "manifest.json").exists():
                 with open(content_dir / "manifest.json") as f:
@@ -248,11 +219,6 @@ def working_directory(directory):
         yield directory
     finally:
         os.chdir(owd)
-
-
-def is_binary_file(f: Path) -> bool:
-    textchars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x100)) - {0x7F})
-    return f.is_file() and bool(f.read_bytes().translate(None, textchars))
 
 
 def download_mod_with_cache(mod: Mod, output: Path):
