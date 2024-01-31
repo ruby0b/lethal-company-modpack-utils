@@ -207,7 +207,7 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
                     subprocess.run(["cp", "-r", item, target], check=True)
 
             if manifest and (content_dir / "manifest.json").exists():
-                with open(content_dir / "manifest.json") as f:
+                with open(content_dir / "manifest.json", "rb") as f:
                     return json.load(f)
 
 
