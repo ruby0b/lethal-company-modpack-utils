@@ -24,12 +24,18 @@ def main():
         "manifest",
         help="Modpack manifest.json file",
         type=Path,
+        nargs="?",
+        default=Path("modpack/manifest.json"),
     )
 
     args = parser.parse_args()
     manifest_path: Path = (
         args.manifest if not args.manifest.is_dir() else args.manifest / "manifest.json"
     )
+
+    if not manifest_path.exists():
+        print(f"{FAIL}File not found: {manifest_path}{ENDC}")
+        sys.exit(1)
 
     with manifest_path.open() as f:
         manifest = json.load(f)
