@@ -17,6 +17,8 @@ BOLD = "\033[1m"
 
 
 def main():
+    game = "lethal-company"
+
     parser = argparse.ArgumentParser(
         description="Updates Lethal Company modpack dependencies"
     )
@@ -53,8 +55,9 @@ def main():
     any_updates = False
     for old, new in zip(deps, new_deps):
         if old != new:
+            url = f"https://thunderstore.io/c/{game}/p/{new.author}/{new.name}/"
             print(
-                f"{old.author}-{old.name}  {old.version} -> {OK}{BOLD}{new.version}{ENDC}",
+                f"{old.version} -> {OK}{BOLD}{new.version}{ENDC}\t{url}",
             )
             any_updates = True
 
