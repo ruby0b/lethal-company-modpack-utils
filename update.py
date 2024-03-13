@@ -3,12 +3,13 @@
 # Updates modpack dependencies
 
 import argparse
-import copy
-import tomlkit
 from pathlib import Path
 import subprocess
 import sys
+import concurrent.futures
 from dataclasses import dataclass
+
+import tomlkit
 
 OK = "\033[92m"  # GREEN
 WARNING = "\033[93m"  # YELLOW
@@ -43,18 +44,16 @@ def main():
     with thunderstore_toml.open() as f:
         toml = tomlkit.load(f)
 
-    deps = [
-        Mod(*name.split("-"), v) for name, v in toml["package"]["dependencies"].items()
-    ]
+    toml_deps = toml["package"]["dependencies"]
+    deps = [Mod(*name.split("-"), v) for name, v in toml_deps.items()]
 
-    updates = []
-    for mod in deps:
-        latest = latest_version(mod)
-        if latest != mod.version:
-            toml["package"]["dependencies"][f"{mod.author}-{mod.name}"] = latest
-            updates.append((mod, latest))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        latest_versions = list(executor.map(latest_version, deps))
+
+    updates = [(m, v) for m, v in zip(deps, latest_versions) if v != m.version]
 
     for mod, latest in updates:
+        toml_deps[f"{mod.author}-{mod.name}"] = latest
         url = f"https://thunderstore.io/c/{game}/p/{mod.author}/{mod.name}/"
         print(f"{mod.version} -> {OK}{BOLD}{latest}{ENDC}\t{url}")
 
