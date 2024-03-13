@@ -1,9 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env nix-shell
+#!nix-shell -i python -p python3 python3Packages.tomlkit
 # Updates modpack dependencies
 
 import argparse
 import copy
-import json
+import tomlkit
 from pathlib import Path
 import subprocess
 import sys
@@ -23,53 +24,47 @@ def main():
         description="Updates Lethal Company modpack dependencies"
     )
     parser.add_argument(
-        "manifest",
-        help="Modpack manifest.json file",
+        "toml",
+        help="Modpack thunderstore.toml file",
         type=Path,
         nargs="?",
-        default=Path("modpack/manifest.json"),
+        default=Path("modpack/thunderstore.toml"),
     )
 
     args = parser.parse_args()
-    manifest_path: Path = (
-        args.manifest if not args.manifest.is_dir() else args.manifest / "manifest.json"
+    thunderstore_toml: Path = (
+        args.toml if not args.toml.is_dir() else args.toml / "thunderstore.toml"
     )
 
-    if not manifest_path.exists():
-        print(f"{FAIL}File not found: {manifest_path}{ENDC}")
+    if not thunderstore_toml.exists():
+        print(f"{FAIL}File not found: {thunderstore_toml}{ENDC}")
         sys.exit(1)
 
-    with manifest_path.open() as f:
-        manifest = json.load(f)
+    with thunderstore_toml.open() as f:
+        toml = tomlkit.load(f)
 
-    deps = [Mod.parse(mod) for mod in manifest["dependencies"]]
+    deps = [
+        Mod(*name.split("-"), v) for name, v in toml["package"]["dependencies"].items()
+    ]
 
-    new_manifest = copy.deepcopy(manifest)
-    for i, mod in enumerate(deps):
+    updates = []
+    for mod in deps:
         latest = latest_version(mod)
         if latest != mod.version:
-            new_manifest["dependencies"][i] = str(Mod(mod.author, mod.name, latest))
+            toml["package"]["dependencies"][f"{mod.author}-{mod.name}"] = latest
+            updates.append((mod, latest))
 
-    new_deps = [Mod.parse(mod) for mod in new_manifest["dependencies"]]
+    for mod, latest in updates:
+        url = f"https://thunderstore.io/c/{game}/p/{mod.author}/{mod.name}/"
+        print(f"{mod.version} -> {OK}{BOLD}{latest}{ENDC}\t{url}")
 
-    any_updates = False
-    for old, new in zip(deps, new_deps):
-        if old != new:
-            url = f"https://thunderstore.io/c/{game}/p/{new.author}/{new.name}/"
-            print(
-                f"{old.version} -> {OK}{BOLD}{new.version}{ENDC}\t{url}",
-            )
-            any_updates = True
-
-    if not any_updates:
-        print(f"{BOLD}No updates{ENDC}")
-        sys.exit(0)
-
-    update = input(f"{BOLD}Update manifest.json? [Y/n]{ENDC} ").lower() in ["y", ""]
-    if any_updates and update:
-        with manifest_path.open("w") as f:
-            json.dump(new_manifest, f, indent=2)
-        print(f"{OK}{BOLD}Wrote {manifest_path}{ENDC}")
+    if updates and input(f"{BOLD}Update? [Y/n]{ENDC} ").lower() in ["y", ""]:
+        with thunderstore_toml.open("w") as f:
+            tomlkit.dump(toml, f)
+        print(f"{OK}{BOLD}Wrote {thunderstore_toml}{ENDC}")
+    else:
+        print(f"{BOLD}No updates were made{ENDC}")
+        sys.exit(1)
 
 
 @dataclass
@@ -78,22 +73,8 @@ class Mod:
     name: str
     version: str | None
 
-    @staticmethod
-    def parse(mod: str):
-        parts = mod.split("-")
-        if len(parts) == 3:
-            return Mod(*parts)
-        if len(parts) == 2:
-            return Mod(*parts, None)
-        print(f"{FAIL}Invalid mod dependency: {mod}{ENDC}")
-        sys.exit(1)
-
     def __str__(self):
         return f"{self.author}-{self.name}-{self.version}"
-
-    @property
-    def folder_name(self):
-        return f"{self.author}-{self.name}"
 
 
 def latest_version(mod: Mod, game="lethal-company"):
