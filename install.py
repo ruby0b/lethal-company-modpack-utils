@@ -68,10 +68,16 @@ def main():
         help=f"Keep existing config files. By default, config files are deleted (except {', '.join(CONFIG_KEEP)}).",
         action="store_true",
     )
+    parser.add_argument(
+        "--keep-cache",
+        help="Don't delete unused cached mod files",
+        action="store_true",
+    )
 
     args = parser.parse_args()
 
     keep_config: bool = args.keep_config
+    keep_cache: bool = args.keep_cache
     game_dir: Path = args.game_dir.resolve()
     mod_strings: list[str] = args.mod
 
@@ -108,22 +114,37 @@ def main():
     for folder in MOD_FOLDERS:
         (game_dir / "BepInEx" / folder).mkdir(exist_ok=True)
 
+    installed_mods = []
+
     # Install mods
     for mod in map(Mod.parse, mod_strings):
         if mod.version is None or mod.version == "latest":
             mod.version = latest_version(mod)
 
         manifest = install_mod(mod, game_dir=game_dir, manifest=True)
-        deps = manifest["dependencies"]
-        if deps:
+        installed_mods.append(mod)
+
+        if deps := manifest["dependencies"]:
             print(f"{BOLD}Installing {len(deps)} dependencies:{ENDC}")
 
-            for dependency in manifest["dependencies"]:
-                install_mod(Mod.parse(dependency), game_dir=game_dir)
+            for dependency_str in deps:
+                dependency = Mod.parse(dependency_str)
+                install_mod(dependency, game_dir=game_dir)
+                installed_mods.append(dependency)
 
             print(
                 f"{OK}{mod.name} {BOLD}v{mod.version}{ENDC}{OK} installed successfully!{ENDC} ({len(deps)} mods)"
             )
+
+    # Clean up old cached mod files
+    if not keep_cache:
+        cached_mods = {mod.cached_path.name for mod in installed_mods}
+        deleted = 0
+        for item in CACHE_DIR.iterdir():
+            if item.is_file() and item.name not in cached_mods:
+                item.unlink()
+                deleted += 1
+        print(f"Deleted {deleted} unused cached mod files")
 
 
 @dataclass
@@ -148,6 +169,10 @@ class Mod:
     @property
     def folder_name(self):
         return f"{self.author}-{self.name}"
+
+    @property
+    def cached_path(self):
+        return CACHE_DIR / f"{self}.zip"
 
 
 def latest_version(mod: Mod, game="lethal-company"):
@@ -222,17 +247,16 @@ def working_directory(directory):
 
 
 def download_mod_with_cache(mod: Mod, output: Path):
-    CACHE_DIR.mkdir(exist_ok=True, parents=True)
-    cached_path = CACHE_DIR / f"{mod}.zip"
-    if not cached_path.exists():
+    if not mod.cached_path.exists():
         print(f"📡 Downloading {mod}")
         url = f"https://thunderstore.io/package/download/{mod.author}/{mod.name}/{mod.version}"
         subprocess.run(
-            ["curl", "-L", "--no-progress-meter", "-o", cached_path, url], check=True
+            ["curl", "-L", "--no-progress-meter", "-o", mod.cached_path, url],
+            check=True,
         )
     else:
         print(f"📦 Using cached {mod}")
-    shutil.copy(cached_path, output)
+    shutil.copy(mod.cached_path, output)
 
 
 if __name__ == "__main__":
