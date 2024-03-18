@@ -8,6 +8,7 @@ import subprocess
 import sys
 import concurrent.futures
 from dataclasses import dataclass
+import time
 
 import tomlkit
 
@@ -83,6 +84,7 @@ def latest_version(mod: Mod, game="lethal-company"):
     response = subprocess.run(
         ["curl", "-L", "--no-progress-meter", url], check=True, capture_output=True
     )
+    time.sleep(.2) # quick and dirty rate limiting fix
     html = response.stdout.decode("utf-8")
     version = ".".join(html.split(f"{mod.author}-{mod.name}-")[1].split(".")[:3])
     return version
