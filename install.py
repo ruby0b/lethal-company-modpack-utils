@@ -12,6 +12,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from dataclasses import dataclass
+from itertools import chain
 
 OK = "\033[92m"  # GREEN
 WARNING = "\033[93m"  # YELLOW
@@ -206,13 +207,14 @@ def install_mod(mod: Mod, game_dir: Path, manifest=False):
             os.chdir(content_dir)
 
             # mod folders may be in the root of the zip, or in the BepInEx folder
-            for item in content_dir.iterdir():
-                if item.is_dir() and item.name.lower() == "bepinex":
-                    os.chdir(item)
-                    break
+            roots = [content_dir] + [
+                d
+                for d in content_dir.iterdir()
+                if d.is_dir() and d.name.lower() == "bepinex"
+            ]
 
-            for item in Path.cwd().iterdir():
-                if item.name.lower() in SKIP_FILES:
+            for item in chain(*map(Path.iterdir, roots)):
+                if item.name.lower() in SKIP_FILES + ["bepinex"]:
                     continue
                 if item.is_dir() and item.name.lower() in MOD_FOLDERS:
                     mod_folder = game_dir / "BepInEx" / item.name.lower()
