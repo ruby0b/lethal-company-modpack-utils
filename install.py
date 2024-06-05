@@ -49,7 +49,7 @@ def main():
         "mod",
         help="Mod string (author-name-version). Leave out version to use the latest version.",
         type=str,
-        nargs="+",
+        nargs="*",
     )
     parser.add_argument(
         "--game-dir",
@@ -192,7 +192,7 @@ def latest_version(mod: Mod, game="lethal-company"):
 
 def install_mod(mod: Mod, game_dir: Path, manifest=False):
     if mod.name == "BepInExPack":
-        print(f"Skipping BepInExPack...")
+        print("Skipping BepInExPack...")
         return
 
     with TemporaryDirectory() as temp_dir:
